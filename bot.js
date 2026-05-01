@@ -7,24 +7,18 @@ dotenv.config();
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
 const ADMIN_ID = Number(process.env.ADMIN_ID);
-
 const OWNER = process.env.GITHUB_OWNER;
 const REPO = process.env.GITHUB_REPO;
 const PATH = process.env.FILE_PATH;
 const TOKEN = process.env.GITHUB_TOKEN;
 
-// =======================
-// STATE MACHINE
-// =======================
 const state = {};
 
-// =======================
-// LOG
-// =======================
 const log = (...a) => console.log("[BOT]", ...a);
+const isAdmin = (id) => id === ADMIN_ID;
 
 // =======================
-// KEYBOARDS
+// UI
 // =======================
 
 const mainMenu = {
@@ -38,31 +32,24 @@ const mainMenu = {
     }
 };
 
-const typeKeyboard = {
+const backCancel = {
     reply_markup: {
         inline_keyboard: [
-            [{ text: "🌐 Site", callback_data: "set_type_site" }],
-            [{ text: "📱 App", callback_data: "set_type_app" }],
-            [{ text: "🤖 Bot", callback_data: "set_type_bot" }],
-            [{ text: "⚙️ Tool", callback_data: "set_type_tool" }]
+            [{ text: "⬅️ Back", callback_data: "add_back" }],
+            [{ text: "❌ Cancel", callback_data: "cancel" }]
         ]
     }
 };
 
-const statusKeyboard = {
+const confirmKeyboard = {
     reply_markup: {
         inline_keyboard: [
-            [{ text: "🟡 In progress", callback_data: "set_status_in_progress" }],
-            [{ text: "🟢 Done", callback_data: "set_status_done" }],
-            [{ text: "⚪ Not started", callback_data: "set_status_not_started" }]
+            [{ text: "✅ Save", callback_data: "add_confirm" }],
+            [{ text: "⬅️ Back", callback_data: "add_back" }],
+            [{ text: "❌ Cancel", callback_data: "cancel" }]
         ]
     }
 };
-
-// =======================
-// ADMIN CHECK
-// =======================
-const isAdmin = (id) => id === ADMIN_ID;
 
 // =======================
 // GITHUB
@@ -86,7 +73,7 @@ async function updateFile(data, sha) {
     await axios.put(
         `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`,
         {
-            message: "update via telegram bot",
+            message: "update via bot",
             content,
             sha
         },
@@ -100,20 +87,19 @@ async function updateFile(data, sha) {
 
 bot.onText(/\/start/, (msg) => {
     if (!isAdmin(msg.from.id)) return;
-    bot.sendMessage(msg.chat.id, "📦 SaaS Admin", mainMenu);
+    bot.sendMessage(msg.chat.id, "📦 Admin Panel", mainMenu);
 });
 
 // =======================
-// CALLBACK (CORE)
+// CALLBACK
 // =======================
 
 bot.on("callback_query", async (q) => {
     try {
-        const chatId = q.message?.chat?.id;
+        const chatId = q.message.chat.id;
         const data = q.data;
 
-        bot.answerCallbackQuery(q.id).catch(() => {});
-
+        await bot.answerCallbackQuery(q.id).catch(() => {});
         if (!isAdmin(q.from.id)) return;
 
         log("CLICK:", data);
@@ -130,38 +116,22 @@ bot.on("callback_query", async (q) => {
             return bot.sendMessage(chatId, text, mainMenu);
         }
 
-        // ================= DELETE MENU =================
+        // ================= DELETE =================
         if (data === "delete_menu") {
             const file = await getFile();
 
             const buttons = file.data.map(p => ([{
                 text: `❌ ${p.title}`,
-                callback_data: `del_pick_${p.id}`
+                callback_data: `del_${p.id}`
             }]));
 
-            return bot.sendMessage(chatId, "Select project to delete:", {
+            return bot.sendMessage(chatId, "Select project:", {
                 reply_markup: { inline_keyboard: buttons }
             });
         }
 
-        // ================= DELETE CONFIRM =================
-        if (data.startsWith("del_pick_")) {
-            const id = Number(data.split("_")[2]);
-
-            state[chatId] = { deleteId: id };
-
-            return bot.sendMessage(chatId, "Are you sure?", {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: "YES DELETE", callback_data: `del_confirm_${id}` }],
-                        [{ text: "CANCEL", callback_data: "cancel" }]
-                    ]
-                }
-            });
-        }
-
-        if (data.startsWith("del_confirm_")) {
-            const id = Number(data.split("_")[2]);
+        if (data.startsWith("del_")) {
+            const id = Number(data.split("_")[1]);
 
             const file = await getFile();
             file.data = file.data.filter(p => p.id !== id);
@@ -171,17 +141,13 @@ bot.on("callback_query", async (q) => {
             return bot.sendMessage(chatId, "🗑 Deleted", mainMenu);
         }
 
-        if (data === "cancel") {
-            return bot.sendMessage(chatId, "Cancelled", mainMenu);
-        }
-
-        // ================= EDIT FLOW =================
+        // ================= EDIT =================
         if (data === "edit_menu") {
             const file = await getFile();
 
             const buttons = file.data.map(p => ([{
                 text: `✏️ ${p.title}`,
-                callback_data: `edit_pick_${p.id}`
+                callback_data: `edit_${p.id}`
             }]));
 
             return bot.sendMessage(chatId, "Pick project:", {
@@ -189,69 +155,126 @@ bot.on("callback_query", async (q) => {
             });
         }
 
-        if (data.startsWith("edit_pick_")) {
-            const id = Number(data.split("_")[2]);
+        if (data.startsWith("edit_")) {
+            const id = Number(data.split("_")[1]);
 
-            state[chatId] = { editId: id };
+            state[chatId] = { mode: "edit", id };
 
-            return bot.sendMessage(chatId, "What to edit?", {
+            return bot.sendMessage(chatId, "Send new TITLE:");
+        }
+
+        // ================= ADD START =================
+        if (data === "add") {
+            state[chatId] = {
+                mode: "add",
+                step: "title",
+                data: {}
+            };
+
+            return bot.sendMessage(chatId, "📝 Enter TITLE:", backCancel);
+        }
+
+        // ================= ADD NAV =================
+        if (data === "cancel") {
+            delete state[chatId];
+            return bot.sendMessage(chatId, "❌ Cancelled", mainMenu);
+        }
+
+        if (data === "add_back") {
+            const s = state[chatId];
+
+            if (!s) return;
+
+            if (s.step === "status") {
+                s.step = "type";
+                return bot.sendMessage(chatId, "Select TYPE:");
+            }
+
+            if (s.step === "preview") {
+                s.step = "status";
+                return bot.sendMessage(chatId, "Select STATUS:");
+            }
+
+            if (s.step === "type") {
+                s.step = "url";
+                return bot.sendMessage(chatId, "🔗 URL:");
+            }
+
+            if (s.step === "url") {
+                s.step = "stack";
+                return bot.sendMessage(chatId, "⚙️ Stack:");
+            }
+
+            if (s.step === "stack") {
+                s.step = "desc";
+                return bot.sendMessage(chatId, "📄 Description:");
+            }
+
+            if (s.step === "desc") {
+                s.step = "short";
+                return bot.sendMessage(chatId, "🧾 Short:");
+            }
+
+            if (s.step === "short") {
+                s.step = "title";
+                return bot.sendMessage(chatId, "📝 Title:");
+            }
+        }
+
+        // ================= TYPE =================
+        if (data.startsWith("add_type_")) {
+            const val = data.replace("add_type_", "");
+            state[chatId].data.type = val;
+            state[chatId].step = "status";
+
+            return bot.sendMessage(chatId, "Select STATUS:", {
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "Title", callback_data: "edit_field_title" }],
-                        [{ text: "Status", callback_data: "edit_field_status" }],
-                        [{ text: "Type", callback_data: "edit_field_type" }],
-                        [{ text: "Description", callback_data: "edit_field_description" }]
+                        [{ text: "🟡 In progress", callback_data: "add_status_in_progress" }],
+                        [{ text: "🟢 Done", callback_data: "add_status_done" }],
+                        [{ text: "⚪ Not started", callback_data: "add_status_not_started" }]
                     ]
                 }
             });
         }
 
-        // ================= FIELD EDIT =================
-        if (data.startsWith("edit_field_")) {
-            const field = data.replace("edit_field_", "");
+        // ================= STATUS =================
+        if (data.startsWith("add_status_")) {
+            const val = data.replace("add_status_", "");
+            state[chatId].data.status = val;
+            state[chatId].step = "preview";
 
-            state[chatId].field = field;
+            const d = state[chatId].data;
 
-            if (field === "type") {
-                state[chatId].mode = "type";
-                return bot.sendMessage(chatId, "Select TYPE:", typeKeyboard);
-            }
+            return bot.sendMessage(chatId,
+`📦 Preview:
 
-            if (field === "status") {
-                state[chatId].mode = "status";
-                return bot.sendMessage(chatId, "Select STATUS:", statusKeyboard);
-            }
-
-            state[chatId].mode = "text";
-            return bot.sendMessage(chatId, "Send new value:");
+📌 ${d.title}
+🧾 ${d.shortDescription}
+📄 ${d.description}
+⚙️ ${d.stack.join(", ")}
+🔗 ${d.url}
+🏷 ${d.type}
+📊 ${d.status}`,
+            confirmKeyboard);
         }
 
-        // ================= TYPE SET =================
-        if (data.startsWith("set_type_")) {
-            const val = data.replace("set_type_", "");
+        // ================= SAVE =================
+        if (data === "add_confirm") {
+            const s = state[chatId];
 
             const file = await getFile();
-            const p = file.data.find(x => x.id === state[chatId].editId);
 
-            p.type = val;
+            file.data.push({
+                id: Date.now(),
+                ...s.data
+            });
 
             await updateFile(file.data, file.sha);
 
-            return bot.sendMessage(chatId, "✅ Type updated", mainMenu);
-        }
+            delete state[chatId];
 
-        // ================= STATUS SET =================
-        if (data.startsWith("set_status_")) {
-            const val = data.replace("set_status_", "");
-
-            const file = await getFile();
-            const p = file.data.find(x => x.id === state[chatId].editId);
-
-            p.status = val;
-
-            await updateFile(file.data, file.sha);
-
-            return bot.sendMessage(chatId, "✅ Status updated", mainMenu);
+            return bot.sendMessage(chatId, "✅ Project created", mainMenu);
         }
 
     } catch (e) {
@@ -260,7 +283,7 @@ bot.on("callback_query", async (q) => {
 });
 
 // =======================
-// TEXT INPUT (ONLY FOR SIMPLE EDIT FIELDS)
+// MESSAGE FLOW
 // =======================
 
 bot.on("message", async (msg) => {
@@ -272,22 +295,74 @@ bot.on("message", async (msg) => {
 
         const s = state[chatId];
 
-        if (s.mode !== "text") return;
+        // EDIT
+        if (s.mode === "edit") {
+            const file = await getFile();
+            const p = file.data.find(x => x.id === s.id);
 
-        const file = await getFile();
-        const p = file.data.find(x => x.id === s.editId);
+            if (!p) return;
 
-        if (!p) return;
+            p.title = msg.text;
 
-        p[s.field] = msg.text;
+            await updateFile(file.data, file.sha);
 
-        await updateFile(file.data, file.sha);
+            delete state[chatId];
 
-        delete state[chatId];
+            return bot.sendMessage(chatId, "✏️ Updated", mainMenu);
+        }
 
-        return bot.sendMessage(chatId, "✏️ Updated", mainMenu);
+        // ADD FLOW
+
+        if (s.step === "title") {
+            s.data.title = msg.text;
+            s.step = "short";
+            return bot.sendMessage(chatId, "🧾 Short:", backCancel);
+        }
+
+        if (s.step === "short") {
+            s.data.shortDescription = msg.text;
+            s.step = "desc";
+            return bot.sendMessage(chatId, "📄 Description:", backCancel);
+        }
+
+        if (s.step === "desc") {
+            s.data.description = msg.text;
+            s.step = "stack";
+            return bot.sendMessage(chatId, "⚙️ Stack:", backCancel);
+        }
+
+        if (s.step === "stack") {
+            s.data.stack = msg.text.split(",").map(x => x.trim());
+            s.step = "url";
+            return bot.sendMessage(chatId, "🔗 URL:", backCancel);
+        }
+
+        if (s.step === "url") {
+            s.data.url = msg.text;
+            s.step = "type";
+
+            return bot.sendMessage(chatId, "Select TYPE:", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "🌐 Site", callback_data: "add_type_site" }],
+                        [{ text: "📱 App", callback_data: "add_type_app" }],
+                        [{ text: "🤖 Bot", callback_data: "add_type_bot" }],
+                        [{ text: "⚙️ Tool", callback_data: "add_type_tool" }]
+                    ]
+                }
+            });
+        }
 
     } catch (e) {
         console.error("[MESSAGE ERROR]", e);
     }
 });
+
+// =======================
+// GLOBAL ERRORS
+// =======================
+
+process.on("uncaughtException", e => console.error("[FATAL]", e));
+process.on("unhandledRejection", e => console.error("[PROMISE]", e));
+
+log("BOT STARTED");
