@@ -16,7 +16,6 @@ app.listen(PORT, () => {
     console.log("HTTP server running on", PORT);
 });
 
-
 // TELEGRAM
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
@@ -31,14 +30,47 @@ const state = {};
 const log = (...a) => console.log("[BOT]", ...a);
 const isAdmin = (id) => id === ADMIN_ID;
 
-// UI
+// ═══════════════════════════════════════════════════════════
+// 🎨 BEAUTIFUL UI COMPONENTS
+// ═══════════════════════════════════════════════════════════
+
+const getProgressBar = (current, total) => {
+    const filled = Math.round((current / total) * 10);
+    const empty = 10 - filled;
+    return "▪".repeat(filled) + "░".repeat(empty);
+};
+
+const getStatusEmoji = (status) => {
+    const statusMap = {
+        "in_progress": "🟡",
+        "done": "🟢",
+        "not_started": "⚪"
+    };
+    return statusMap[status] || "❓";
+};
+
+const getTypeEmoji = (type) => {
+    const typeMap = {
+        "site": "🌐",
+        "app": "📱",
+        "bot": "🤖",
+        "tool": "⚙️"
+    };
+    return typeMap[type] || "📦";
+};
+
+// Main menu - clean and organized
 const mainMenu = {
     reply_markup: {
         inline_keyboard: [
-            [{ text: "➕ Add", callback_data: "add" }],
-            [{ text: "📋 List", callback_data: "list" }],
-            [{ text: "✏️ Edit", callback_data: "edit_menu" }],
-            [{ text: "🗑 Delete", callback_data: "delete_menu" }]
+            [
+                { text: "➕ Добавить", callback_data: "add" },
+                { text: "📋 Список", callback_data: "list" }
+            ],
+            [
+                { text: "✏️ Редактировать", callback_data: "edit_menu" },
+                { text: "🗑️ Удалить", callback_data: "delete_menu" }
+            ]
         ]
     }
 };
@@ -46,8 +78,10 @@ const mainMenu = {
 const backCancel = {
     reply_markup: {
         inline_keyboard: [
-            [{ text: "⬅️ Back", callback_data: "add_back" }],
-            [{ text: "❌ Cancel", callback_data: "cancel" }]
+            [
+                { text: "⬅️ Назад", callback_data: "add_back" },
+                { text: "❌ Отмена", callback_data: "cancel" }
+            ]
         ]
     }
 };
@@ -55,15 +89,19 @@ const backCancel = {
 const confirmKeyboard = {
     reply_markup: {
         inline_keyboard: [
-            [{ text: "✅ Save", callback_data: "add_confirm" }],
-            [{ text: "⬅️ Back", callback_data: "add_back" }],
-            [{ text: "❌ Cancel", callback_data: "cancel" }]
+            [{ text: "✅ Сохранить", callback_data: "add_confirm" }],
+            [
+                { text: "🔙 Назад", callback_data: "add_back" },
+                { text: "❌ Отмена", callback_data: "cancel" }
+            ]
         ]
     }
 };
 
+// ═══════════════════════════════════════════════════════════
+// 📡 GITHUB API
+// ═══════════════════════════════════════════════════════════
 
-// GITHUB API
 async function getFile() {
     const res = await axios.get(
         `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`,
@@ -90,14 +128,30 @@ async function updateFile(data, sha) {
     );
 }
 
+// ═══════════════════════════════════════════════════════════
+// 🚀 BOT HANDLERS
+// ═══════════════════════════════════════════════════════════
+
 // START
 bot.onText(/\/start/, (msg) => {
-    if (!isAdmin(msg.from.id)) return;
-    bot.sendMessage(msg.chat.id, "📦 Admin Panel", mainMenu);
+    if (!isAdmin(msg.from.id)) {
+        return bot.sendMessage(msg.chat.id, "❌ У вас нет доступа к этому боту");
+    }
+    
+    const welcomeText = `
+╔════════════════════════════════════╗
+║   📦 ПАНЕЛЬ АДМИНИСТРАТОРА        ║
+╚═══════════════════════════��════════╝
+
+Добро пожаловать! Здесь вы можете управлять своими проектами.
+
+Выберите действие ниже:
+`;
+    
+    bot.sendMessage(msg.chat.id, welcomeText, mainMenu);
 });
 
-
-// CALLBACK
+// CALLBACK QUERIES
 bot.on("callback_query", async (q) => {
     try {
         const chatId = q.message.chat.id;
@@ -108,24 +162,49 @@ bot.on("callback_query", async (q) => {
 
         log("CLICK:", data);
 
-        // LIST
+        // ─────────────────────────────────────────
+        // 📋 LIST PROJECTS
+        // ───────────────────────────────────��─────
         if (data === "list") {
             const file = await getFile();
-            let text = "📋 PROJECTS:\n\n";
-            file.data.forEach(p => {
-                text += `🆔 ${p.id}\n📌 ${p.title}\n⚡ ${p.status}\n\n`;
+            
+            if (file.data.length === 0) {
+                return bot.sendMessage(chatId, "📭 Нет проектов\n\nНажмите ➕ Добавить для создания первого проекта", mainMenu);
+            }
+
+            let text = `
+╔═══════════════════════════════════���╗
+║   📋 ВСЕ ПРОЕКТЫ (${file.data.length})          ║
+╚════════════════════════════════════╝
+
+`;
+            file.data.forEach((p, index) => {
+                text += `${index + 1}. ${getTypeEmoji(p.type)} ${p.title}
+   ${getStatusEmoji(p.status)} Статус: ${p.status}
+   🔗 ${p.url}
+${index < file.data.length - 1 ? "─────────────────────────────\n" : ""}`;
             });
+
             return bot.sendMessage(chatId, text, mainMenu);
         }
 
-        // DELETE 
+        // ─────────────────────────────────────────
+        // 🗑️ DELETE PROJECT
+        // ─────────────────────────────────────────
         if (data === "delete_menu") {
             const file = await getFile();
+            
+            if (file.data.length === 0) {
+                return bot.sendMessage(chatId, "📭 Нет проектов для удаления", mainMenu);
+            }
+
             const buttons = file.data.map(p => ([{
-                text: `❌ ${p.title}`,
+                text: `🗑️ ${p.title}`,
                 callback_data: `del_${p.id}`
             }]));
-            return bot.sendMessage(chatId, "Select project:", {
+            buttons.push([{ text: "❌ Отмена", callback_data: "cancel" }]);
+
+            return bot.sendMessage(chatId, "🗑️ Выберите проект для удаления:", {
                 reply_markup: { inline_keyboard: buttons }
             });
         }
@@ -133,19 +212,31 @@ bot.on("callback_query", async (q) => {
         if (data.startsWith("del_")) {
             const id = Number(data.split("_")[1]);
             const file = await getFile();
+            const project = file.data.find(p => p.id === id);
+            
             file.data = file.data.filter(p => p.id !== id);
             await updateFile(file.data, file.sha);
-            return bot.sendMessage(chatId, "🗑 Deleted", mainMenu);
+            
+            return bot.sendMessage(chatId, `✅ Проект "${project.title}" удален`, mainMenu);
         }
 
-        // EDIT
+        // ─────────────────────────────────────────
+        // ✏️ EDIT PROJECT
+        // ─────────────────────────────────────────
         if (data === "edit_menu") {
             const file = await getFile();
+            
+            if (file.data.length === 0) {
+                return bot.sendMessage(chatId, "📭 Нет проектов для редактирования", mainMenu);
+            }
+
             const buttons = file.data.map(p => ([{
                 text: `✏️ ${p.title}`,
                 callback_data: `edit_${p.id}`
             }]));
-            return bot.sendMessage(chatId, "Pick project:", {
+            buttons.push([{ text: "❌ Отмена", callback_data: "cancel" }]);
+
+            return bot.sendMessage(chatId, "✏️ Выберите проект для редактирования:", {
                 reply_markup: { inline_keyboard: buttons }
             });
         }
@@ -154,19 +245,28 @@ bot.on("callback_query", async (q) => {
             const id = Number(data.split("_")[1]);
             const file = await getFile();
             const project = file.data.find(p => p.id === id);
-            if (!project) return bot.sendMessage(chatId, "Project not found", mainMenu);
+            
+            if (!project) return bot.sendMessage(chatId, "❌ Проект не найден", mainMenu);
 
-            return bot.sendMessage(chatId,
-`✏️ Editing: ${project.title}
+            const editText = `
+╔════════════════════════════════════╗
+║   ✏️ РЕДАКТИРОВАНИЕ              ║
+╚════════════════════════════════════╝
 
-Choose field to change:`, {
+📌 Проект: ${project.title}
+
+Что вы хотите изменить?
+`;
+            
+            return bot.sendMessage(chatId, editText, {
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "📝 Title", callback_data: `edit_field_title_${id}` }],
-                        [{ text: "🧾 Short description", callback_data: `edit_field_shortDescription_${id}` }],
-                        [{ text: "📄 Description", callback_data: `edit_field_description_${id}` }],
-                        [{ text: "⚡ Status", callback_data: `edit_field_status_${id}` }],
-                        [{ text: "❌ Cancel", callback_data: "cancel" }]
+                        [{ text: "📝 Название", callback_data: `edit_field_title_${id}` }],
+                        [{ text: "🧾 Краткое описание", callback_data: `edit_field_shortDescription_${id}` }],
+                        [{ text: "📄 Полное описание", callback_data: `edit_field_description_${id}` }],
+                        [{ text: "⚙️ Стек технологий", callback_data: `edit_field_stack_${id}` }],
+                        [{ text: "📊 Статус", callback_data: `edit_field_status_${id}` }],
+                        [{ text: "❌ Отмена", callback_data: "cancel" }]
                     ]
                 }
             });
@@ -178,20 +278,29 @@ Choose field to change:`, {
             state[chatId] = { mode: "edit", id, field };
 
             if (field === "status") {
-                return bot.sendMessage(chatId, "Select new STATUS:", {
+                return bot.sendMessage(chatId, "📊 Выберите новый статус:", {
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: "🟡 In progress", callback_data: `edit_status_val_${id}_in_progress` }],
-                            [{ text: "🟢 Done", callback_data: `edit_status_val_${id}_done` }],
-                            [{ text: "⚪ Not started", callback_data: `edit_status_val_${id}_not_started` }],
-                            [{ text: "❌ Cancel", callback_data: "cancel" }]
+                            [{ text: "🟡 В процессе", callback_data: `edit_status_val_${id}_in_progress` }],
+                            [{ text: "🟢 Завершено", callback_data: `edit_status_val_${id}_done` }],
+                            [{ text: "⚪ Не начиналось", callback_data: `edit_status_val_${id}_not_started` }],
+                            [{ text: "❌ Отмена", callback_data: "cancel" }]
                         ]
                     }
                 });
             }
 
-            const label = field === "title" ? "TITLE" : field === "shortDescription" ? "Short description" : "Description";
-            return bot.sendMessage(chatId, `Send new ${label}:`);
+            if (field === "stack") {
+                return bot.sendMessage(chatId, `⚙️ Отправьте стек (через запятую):`, backCancel);
+            }
+
+            const labels = {
+                title: "Название",
+                shortDescription: "Краткое описание",
+                description: "Полное описание"
+            };
+
+            return bot.sendMessage(chatId, `📝 Отправьте новое "${labels[field] || field}":`, backCancel);
         }
 
         if (data.startsWith("edit_status_val_")) {
@@ -200,89 +309,116 @@ Choose field to change:`, {
             const status = parts.slice(4).join("_");
             const file = await getFile();
             const project = file.data.find(p => p.id === id);
-            if (!project) return bot.sendMessage(chatId, "Project not found", mainMenu);
+            
+            if (!project) return bot.sendMessage(chatId, "❌ Проект не найден", mainMenu);
 
             project.status = status;
             await updateFile(file.data, file.sha);
 
             delete state[chatId];
-            return bot.sendMessage(chatId, `✏️ Status updated to ${status}`, mainMenu);
+            return bot.sendMessage(chatId, `✅ Статус обновлен: ${getStatusEmoji(status)} ${status}`, mainMenu);
         }
 
-        // ADD START
+        // ─────────────────────────────────────────
+        // ➕ ADD PROJECT
+        // ─────────────────────────────────────────
         if (data === "add") {
             state[chatId] = {
                 mode: "add",
                 step: "title",
-                data: {}
+                data: {},
+                startTime: Date.now()
             };
-            return bot.sendMessage(chatId, "📝 Enter TITLE:", backCancel);
+            
+            const addText = `
+╔════════════════════════════════════╗
+║   ➕ ДОБАВЛЕНИЕ ПРОЕКТА          ║
+╚══════════��═════════════════════════╝
+
+${getProgressBar(1, 6)}
+ШАГ 1/6: Название проекта
+
+Введите название вашего проекта:
+`;
+            
+            return bot.sendMessage(chatId, addText, backCancel);
         }
 
-        //NAV
+        // ─────────────────────────────────────────
+        // NAVIGATION
+        // ─────────────────────────────────────────
         if (data === "cancel") {
             delete state[chatId];
-            return bot.sendMessage(chatId, "❌ Cancelled", mainMenu);
+            return bot.sendMessage(chatId, "❌ Операция отменена", mainMenu);
         }
 
         if (data === "add_back") {
             const s = state[chatId];
             if (!s) return;
 
-            if (s.step === "status") {
-                s.step = "type";
-                return bot.sendMessage(chatId, "Select TYPE:");
-            }
+            const steps = ["title", "short", "desc", "stack", "url", "type", "status"];
+            const currentIdx = steps.indexOf(s.step);
+            
+            if (currentIdx > 0) {
+                s.step = steps[currentIdx - 1];
+                
+                const stepMessages = {
+                    title: `${getProgressBar(1, 6)}\nШАГ 1/6: Название проекта\n\nВведите название:`,
+                    short: `${getProgressBar(2, 6)}\nШАГ 2/6: Краткое описание\n\nВведите краткое описание:`,
+                    desc: `${getProgressBar(3, 6)}\nШАГ 3/6: Полное описание\n\nВведите полное описание:`,
+                    stack: `${getProgressBar(4, 6)}\nШАГ 4/6: Стек технологий\n\nВведите стек (через запятую):`,
+                    url: `${getProgressBar(5, 6)}\nШАГ 5/6: URL проекта\n\nВведите URL:`,
+                    type: `${getProgressBar(6, 6)}\nШАГ 6/6: Тип проекта\n\nВыберите тип:`,
+                };
 
-            if (s.step === "preview") {
-                s.step = "status";
-                return bot.sendMessage(chatId, "Select STATUS:");
-            }
-
-            if (s.step === "type") {
-                s.step = "url";
-                return bot.sendMessage(chatId, "🔗 URL:");
-            }
-
-            if (s.step === "url") {
-                s.step = "stack";
-                return bot.sendMessage(chatId, "⚙️ Stack:");
-            }
-
-            if (s.step === "stack") {
-                s.step = "desc";
-                return bot.sendMessage(chatId, "📄 Description:");
-            }
-
-            if (s.step === "desc") {
-                s.step = "short";
-                return bot.sendMessage(chatId, "🧾 Short:");
-            }
-
-            if (s.step === "short") {
-                s.step = "title";
-                return bot.sendMessage(chatId, "📝 Title:");
+                if (s.step === "type") {
+                    return bot.sendMessage(chatId, stepMessages[s.step], {
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: "🌐 Сайт", callback_data: "add_type_site" }],
+                                [{ text: "📱 Приложение", callback_data: "add_type_app" }],
+                                [{ text: "🤖 Бот", callback_data: "add_type_bot" }],
+                                [{ text: "⚙️ Инструмент", callback_data: "add_type_tool" }]
+                            ]
+                        }
+                    });
+                } else if (s.step === "status") {
+                    return bot.sendMessage(chatId, `${getProgressBar(6, 6)}\nШАГ 6/6: Статус проекта\n\nВыберите статус:`, {
+                        reply_markup: {
+                            inline_keyboard: [
+                                [{ text: "🟡 В процессе", callback_data: "add_status_in_progress" }],
+                                [{ text: "🟢 Завершено", callback_data: "add_status_done" }],
+                                [{ text: "⚪ Не начиналось", callback_data: "add_status_not_started" }]
+                            ]
+                        }
+                    });
+                } else {
+                    return bot.sendMessage(chatId, stepMessages[s.step], backCancel);
+                }
+            } else {
+                delete state[chatId];
+                return bot.sendMessage(chatId, "❌ Операция отменена", mainMenu);
             }
         }
 
-        //  TYPE
+        // TYPE SELECTION
         if (data.startsWith("add_type_")) {
             const val = data.replace("add_type_", "");
             state[chatId].data.type = val;
             state[chatId].step = "status";
 
-            return bot.sendMessage(chatId, "Select STATUS:", {
+            return bot.sendMessage(chatId, `${getProgressBar(6, 6)}\nШАГ 6/6: Статус проекта\n\nВыберите статус:`, {
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "🟡 In progress", callback_data: "add_status_in_progress" }],
-                        [{ text: "🟢 Done", callback_data: "add_status_done" }],
-                        [{ text: "⚪ Not started", callback_data: "add_status_not_started" }]
+                        [{ text: "🟡 В процессе", callback_data: "add_status_in_progress" }],
+                        [{ text: "🟢 Завершено", callback_data: "add_status_done" }],
+                        [{ text: "⚪ Не начиналось", callback_data: "add_status_not_started" }]
                     ]
                 }
             });
         }
 
-        //STATUS
+        // STATUS SELECTION
         if (data.startsWith("add_status_")) {
             const val = data.replace("add_status_", "");
             state[chatId].data.status = val;
@@ -290,20 +426,38 @@ Choose field to change:`, {
 
             const d = state[chatId].data;
 
-            return bot.sendMessage(chatId,
-`📦 Preview:
+            const previewText = `
+╔════════════════════════════════════╗
+║   ✅ ПРОВЕРКА ДАННЫХ             ║
+╚════════════════════════════════════╝
 
-📌 ${d.title}
-🧾 ${d.shortDescription}
-📄 ${d.description}
-⚙️ ${d.stack.join(", ")}
-🔗 ${d.url}
-🏷 ${d.type}
-📊 ${d.status}`,
-            confirmKeyboard);
+📌 Название:
+${d.title}
+
+🧾 Краткое описание:
+${d.shortDescription}
+
+📄 Полное описание:
+${d.description}
+
+⚙️ Стек:
+${Array.isArray(d.stack) ? d.stack.join(", ") : d.stack}
+
+🔗 URL:
+${d.url}
+
+🏷️ Тип: ${getTypeEmoji(d.type)} ${d.type}
+
+📊 Статус: ${getStatusEmoji(d.status)} ${d.status}
+
+─────────────────────────────────────
+Всё верно? Нажмите "Сохранить"
+`;
+
+            return bot.sendMessage(chatId, previewText, confirmKeyboard);
         }
 
-        //  SAVE
+        // SAVE PROJECT
         if (data === "add_confirm") {
             const s = state[chatId];
             const file = await getFile();
@@ -317,15 +471,29 @@ Choose field to change:`, {
 
             delete state[chatId];
 
-            return bot.sendMessage(chatId, "✅ Project created", mainMenu);
+            const successText = `
+╔════════════════════════════════════╗
+║   ✅ УСПЕШНО!                    ║
+╚════════════════════════════════════╝
+
+Проект "${s.data.title}" создан 🎉
+
+Вернитесь в главное меню для дальнейших действий.
+`;
+
+            return bot.sendMessage(chatId, successText, mainMenu);
         }
 
     } catch (e) {
         console.error("[CALLBACK ERROR]", e);
+        bot.sendMessage(q.message.chat.id, "❌ Ошибка при обработке запроса", mainMenu);
     }
 });
 
-// MESSAGE FLOW
+// ═══════════════════════════════════════════════════════════
+// 💬 MESSAGE HANDLING
+// ═══════════════════════════════════════════════════════════
+
 bot.on("message", async (msg) => {
     try {
         const chatId = msg.chat.id;
@@ -335,7 +503,7 @@ bot.on("message", async (msg) => {
 
         const s = state[chatId];
 
-        // EDIT
+        // EDIT MODE
         if (s.mode === "edit") {
             const file = await getFile();
             const p = file.data.find(x => x.id === s.id);
@@ -348,54 +516,53 @@ bot.on("message", async (msg) => {
             } else if (s.field === "description") {
                 p.description = msg.text;
             } else if (s.field === "stack") {
-                p.stack = msg.text;
+                p.stack = msg.text.split(",").map(x => x.trim());
             } else {
-                return bot.sendMessage(chatId, "Unknown edit field", mainMenu);
+                return bot.sendMessage(chatId, "❌ Неизвестное поле", mainMenu);
             }
 
             await updateFile(file.data, file.sha);
-
             delete state[chatId];
 
-            return bot.sendMessage(chatId, "✏️ Updated", mainMenu);
+            return bot.sendMessage(chatId, `✅ "${s.field}" обновлено`, mainMenu);
         }
 
-        // ADD FLOW
+        // ADD MODE - STEP BY STEP
         if (s.step === "title") {
             s.data.title = msg.text;
             s.step = "short";
-            return bot.sendMessage(chatId, "🧾 Short:", backCancel);
+            return bot.sendMessage(chatId, `${getProgressBar(2, 6)}\nШАГ 2/6: Краткое описание\n\nВведите краткое описание:`, backCancel);
         }
 
         if (s.step === "short") {
             s.data.shortDescription = msg.text;
             s.step = "desc";
-            return bot.sendMessage(chatId, "📄 Description:", backCancel);
+            return bot.sendMessage(chatId, `${getProgressBar(3, 6)}\nШАГ 3/6: Полное описание\n\nВведите полное описание:`, backCancel);
         }
 
         if (s.step === "desc") {
             s.data.description = msg.text;
             s.step = "stack";
-            return bot.sendMessage(chatId, "⚙️ Stack:", backCancel);
+            return bot.sendMessage(chatId, `${getProgressBar(4, 6)}\nШАГ 4/6: Стек технологий\n\nВведите стек (через запятую):\n\nПример: React, Node.js, PostgreSQL`, backCancel);
         }
 
         if (s.step === "stack") {
             s.data.stack = msg.text.split(",").map(x => x.trim());
             s.step = "url";
-            return bot.sendMessage(chatId, "🔗 URL:", backCancel);
+            return bot.sendMessage(chatId, `${getProgressBar(5, 6)}\nШАГ 5/6: URL проекта\n\nВведите URL проекта:`, backCancel);
         }
 
         if (s.step === "url") {
             s.data.url = msg.text;
             s.step = "type";
 
-            return bot.sendMessage(chatId, "Select TYPE:", {
+            return bot.sendMessage(chatId, `${getProgressBar(6, 6)}\nШАГ 6/6: Тип проекта\n\nВыберите тип проекта:`, {
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "🌐 Site", callback_data: "add_type_site" }],
-                        [{ text: "📱 App", callback_data: "add_type_app" }],
-                        [{ text: "🤖 Bot", callback_data: "add_type_bot" }],
-                        [{ text: "⚙️ Tool", callback_data: "add_type_tool" }]
+                        [{ text: "🌐 Сайт", callback_data: "add_type_site" }],
+                        [{ text: "📱 Приложение", callback_data: "add_type_app" }],
+                        [{ text: "🤖 Бот", callback_data: "add_type_bot" }],
+                        [{ text: "⚙️ Инструмент", callback_data: "add_type_tool" }]
                     ]
                 }
             });
@@ -403,15 +570,17 @@ bot.on("message", async (msg) => {
 
     } catch (e) {
         console.error("[MESSAGE ERROR]", e);
+        bot.sendMessage(chatId, "❌ Ошибка при обработке сообщения", mainMenu);
     }
 });
 
+// Keep-alive ping
 setInterval(() => {
     console.log("alive ping");
 }, 1000 * 60 * 5);
 
-
+// Error handling
 process.on("uncaughtException", e => console.error("[FATAL]", e));
 process.on("unhandledRejection", e => console.error("[PROMISE]", e));
 
-log("BOT STARTED");
+log("BOT STARTED ✅");
