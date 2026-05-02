@@ -1,9 +1,27 @@
 import TelegramBot from "node-telegram-bot-api";
 import axios from "axios";
 import dotenv from "dotenv";
+import express from "express";
 
 dotenv.config();
 
+// =======================
+// EXPRESS (FIX RENDER)
+// =======================
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get("/", (req, res) => {
+    res.send("Bot is running");
+});
+
+app.listen(PORT, () => {
+    console.log("HTTP server running on", PORT);
+});
+
+// =======================
+// TELEGRAM
+// =======================
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
 const ADMIN_ID = Number(process.env.ADMIN_ID);
@@ -20,7 +38,6 @@ const isAdmin = (id) => id === ADMIN_ID;
 // =======================
 // UI
 // =======================
-
 const mainMenu = {
     reply_markup: {
         inline_keyboard: [
@@ -52,9 +69,8 @@ const confirmKeyboard = {
 };
 
 // =======================
-// GITHUB
+// GITHUB API
 // =======================
-
 async function getFile() {
     const res = await axios.get(
         `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`,
@@ -84,7 +100,6 @@ async function updateFile(data, sha) {
 // =======================
 // START
 // =======================
-
 bot.onText(/\/start/, (msg) => {
     if (!isAdmin(msg.from.id)) return;
     bot.sendMessage(msg.chat.id, "📦 Admin Panel", mainMenu);
@@ -93,7 +108,6 @@ bot.onText(/\/start/, (msg) => {
 // =======================
 // CALLBACK
 // =======================
-
 bot.on("callback_query", async (q) => {
     try {
         const chatId = q.message.chat.id;
@@ -104,27 +118,23 @@ bot.on("callback_query", async (q) => {
 
         log("CLICK:", data);
 
-        // ================= LIST =================
+        // ===== LIST =====
         if (data === "list") {
             const file = await getFile();
-
             let text = "📋 PROJECTS:\n\n";
             file.data.forEach(p => {
                 text += `🆔 ${p.id}\n📌 ${p.title}\n⚡ ${p.status}\n\n`;
             });
-
             return bot.sendMessage(chatId, text, mainMenu);
         }
 
-        // ================= DELETE =================
+        // ===== DELETE =====
         if (data === "delete_menu") {
             const file = await getFile();
-
             const buttons = file.data.map(p => ([{
                 text: `❌ ${p.title}`,
                 callback_data: `del_${p.id}`
             }]));
-
             return bot.sendMessage(chatId, "Select project:", {
                 reply_markup: { inline_keyboard: buttons }
             });
@@ -132,24 +142,19 @@ bot.on("callback_query", async (q) => {
 
         if (data.startsWith("del_")) {
             const id = Number(data.split("_")[1]);
-
             const file = await getFile();
             file.data = file.data.filter(p => p.id !== id);
-
             await updateFile(file.data, file.sha);
-
             return bot.sendMessage(chatId, "🗑 Deleted", mainMenu);
         }
 
-        // ================= EDIT =================
+        // ===== EDIT =====
         if (data === "edit_menu") {
             const file = await getFile();
-
             const buttons = file.data.map(p => ([{
                 text: `✏️ ${p.title}`,
                 callback_data: `edit_${p.id}`
             }]));
-
             return bot.sendMessage(chatId, "Pick project:", {
                 reply_markup: { inline_keyboard: buttons }
             });
@@ -157,24 +162,21 @@ bot.on("callback_query", async (q) => {
 
         if (data.startsWith("edit_")) {
             const id = Number(data.split("_")[1]);
-
             state[chatId] = { mode: "edit", id };
-
             return bot.sendMessage(chatId, "Send new TITLE:");
         }
 
-        // ================= ADD START =================
+        // ===== ADD START =====
         if (data === "add") {
             state[chatId] = {
                 mode: "add",
                 step: "title",
                 data: {}
             };
-
             return bot.sendMessage(chatId, "📝 Enter TITLE:", backCancel);
         }
 
-        // ================= ADD NAV =================
+        // ===== NAV =====
         if (data === "cancel") {
             delete state[chatId];
             return bot.sendMessage(chatId, "❌ Cancelled", mainMenu);
@@ -182,7 +184,6 @@ bot.on("callback_query", async (q) => {
 
         if (data === "add_back") {
             const s = state[chatId];
-
             if (!s) return;
 
             if (s.step === "status") {
@@ -221,7 +222,7 @@ bot.on("callback_query", async (q) => {
             }
         }
 
-        // ================= TYPE =================
+        // ===== TYPE =====
         if (data.startsWith("add_type_")) {
             const val = data.replace("add_type_", "");
             state[chatId].data.type = val;
@@ -238,7 +239,7 @@ bot.on("callback_query", async (q) => {
             });
         }
 
-        // ================= STATUS =================
+        // ===== STATUS =====
         if (data.startsWith("add_status_")) {
             const val = data.replace("add_status_", "");
             state[chatId].data.status = val;
@@ -259,10 +260,9 @@ bot.on("callback_query", async (q) => {
             confirmKeyboard);
         }
 
-        // ================= SAVE =================
+        // ===== SAVE =====
         if (data === "add_confirm") {
             const s = state[chatId];
-
             const file = await getFile();
 
             file.data.push({
@@ -285,7 +285,6 @@ bot.on("callback_query", async (q) => {
 // =======================
 // MESSAGE FLOW
 // =======================
-
 bot.on("message", async (msg) => {
     try {
         const chatId = msg.chat.id;
@@ -299,7 +298,6 @@ bot.on("message", async (msg) => {
         if (s.mode === "edit") {
             const file = await getFile();
             const p = file.data.find(x => x.id === s.id);
-
             if (!p) return;
 
             p.title = msg.text;
@@ -312,7 +310,6 @@ bot.on("message", async (msg) => {
         }
 
         // ADD FLOW
-
         if (s.step === "title") {
             s.data.title = msg.text;
             s.step = "short";
@@ -359,9 +356,15 @@ bot.on("message", async (msg) => {
 });
 
 // =======================
+// KEEP ALIVE (optional)
+// =======================
+setInterval(() => {
+    console.log("alive ping");
+}, 1000 * 60 * 5);
+
+// =======================
 // GLOBAL ERRORS
 // =======================
-
 process.on("uncaughtException", e => console.error("[FATAL]", e));
 process.on("unhandledRejection", e => console.error("[PROMISE]", e));
 
