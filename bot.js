@@ -347,6 +347,8 @@ bot.on("message", async (msg) => {
                 p.shortDescription = msg.text;
             } else if (s.field === "description") {
                 p.description = msg.text;
+            } else if (s.field === "stack") {
+                p.stack = msg.text;
             } else {
                 return bot.sendMessage(chatId, "Unknown edit field", mainMenu);
             }
