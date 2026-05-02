@@ -5,9 +5,6 @@ import express from "express";
 
 dotenv.config();
 
-// =======================
-// EXPRESS (FIX RENDER)
-// =======================
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -19,9 +16,8 @@ app.listen(PORT, () => {
     console.log("HTTP server running on", PORT);
 });
 
-// =======================
+
 // TELEGRAM
-// =======================
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
 const ADMIN_ID = Number(process.env.ADMIN_ID);
@@ -35,9 +31,7 @@ const state = {};
 const log = (...a) => console.log("[BOT]", ...a);
 const isAdmin = (id) => id === ADMIN_ID;
 
-// =======================
 // UI
-// =======================
 const mainMenu = {
     reply_markup: {
         inline_keyboard: [
@@ -68,9 +62,8 @@ const confirmKeyboard = {
     }
 };
 
-// =======================
+
 // GITHUB API
-// =======================
 async function getFile() {
     const res = await axios.get(
         `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`,
@@ -97,17 +90,14 @@ async function updateFile(data, sha) {
     );
 }
 
-// =======================
 // START
-// =======================
 bot.onText(/\/start/, (msg) => {
     if (!isAdmin(msg.from.id)) return;
     bot.sendMessage(msg.chat.id, "📦 Admin Panel", mainMenu);
 });
 
-// =======================
+
 // CALLBACK
-// =======================
 bot.on("callback_query", async (q) => {
     try {
         const chatId = q.message.chat.id;
@@ -118,7 +108,7 @@ bot.on("callback_query", async (q) => {
 
         log("CLICK:", data);
 
-        // ===== LIST =====
+        // LIST
         if (data === "list") {
             const file = await getFile();
             let text = "📋 PROJECTS:\n\n";
@@ -128,7 +118,7 @@ bot.on("callback_query", async (q) => {
             return bot.sendMessage(chatId, text, mainMenu);
         }
 
-        // ===== DELETE =====
+        // DELETE 
         if (data === "delete_menu") {
             const file = await getFile();
             const buttons = file.data.map(p => ([{
@@ -148,7 +138,7 @@ bot.on("callback_query", async (q) => {
             return bot.sendMessage(chatId, "🗑 Deleted", mainMenu);
         }
 
-        // ===== EDIT =====
+        // EDIT
         if (data === "edit_menu") {
             const file = await getFile();
             const buttons = file.data.map(p => ([{
@@ -160,13 +150,66 @@ bot.on("callback_query", async (q) => {
             });
         }
 
-        if (data.startsWith("edit_")) {
+        if (data.startsWith("edit_") && !data.startsWith("edit_field_") && !data.startsWith("edit_status_val_")) {
             const id = Number(data.split("_")[1]);
-            state[chatId] = { mode: "edit", id };
-            return bot.sendMessage(chatId, "Send new TITLE:");
+            const file = await getFile();
+            const project = file.data.find(p => p.id === id);
+            if (!project) return bot.sendMessage(chatId, "Project not found", mainMenu);
+
+            return bot.sendMessage(chatId,
+`✏️ Editing: ${project.title}
+
+Choose field to change:`, {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "📝 Title", callback_data: `edit_field_title_${id}` }],
+                        [{ text: "🧾 Short description", callback_data: `edit_field_shortDescription_${id}` }],
+                        [{ text: "📄 Description", callback_data: `edit_field_description_${id}` }],
+                        [{ text: "⚡ Status", callback_data: `edit_field_status_${id}` }],
+                        [{ text: "❌ Cancel", callback_data: "cancel" }]
+                    ]
+                }
+            });
         }
 
-        // ===== ADD START =====
+        if (data.startsWith("edit_field_")) {
+            const [_, __, field, idString] = data.split("_");
+            const id = Number(idString);
+            state[chatId] = { mode: "edit", id, field };
+
+            if (field === "status") {
+                return bot.sendMessage(chatId, "Select new STATUS:", {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "🟡 In progress", callback_data: `edit_status_val_${id}_in_progress` }],
+                            [{ text: "🟢 Done", callback_data: `edit_status_val_${id}_done` }],
+                            [{ text: "⚪ Not started", callback_data: `edit_status_val_${id}_not_started` }],
+                            [{ text: "❌ Cancel", callback_data: "cancel" }]
+                        ]
+                    }
+                });
+            }
+
+            const label = field === "title" ? "TITLE" : field === "shortDescription" ? "Short description" : "Description";
+            return bot.sendMessage(chatId, `Send new ${label}:`);
+        }
+
+        if (data.startsWith("edit_status_val_")) {
+            const parts = data.split("_");
+            const id = Number(parts[3]);
+            const status = parts.slice(4).join("_");
+            const file = await getFile();
+            const project = file.data.find(p => p.id === id);
+            if (!project) return bot.sendMessage(chatId, "Project not found", mainMenu);
+
+            project.status = status;
+            await updateFile(file.data, file.sha);
+
+            delete state[chatId];
+            return bot.sendMessage(chatId, `✏️ Status updated to ${status}`, mainMenu);
+        }
+
+        // ADD START
         if (data === "add") {
             state[chatId] = {
                 mode: "add",
@@ -176,7 +219,7 @@ bot.on("callback_query", async (q) => {
             return bot.sendMessage(chatId, "📝 Enter TITLE:", backCancel);
         }
 
-        // ===== NAV =====
+        //NAV
         if (data === "cancel") {
             delete state[chatId];
             return bot.sendMessage(chatId, "❌ Cancelled", mainMenu);
@@ -222,7 +265,7 @@ bot.on("callback_query", async (q) => {
             }
         }
 
-        // ===== TYPE =====
+        //  TYPE
         if (data.startsWith("add_type_")) {
             const val = data.replace("add_type_", "");
             state[chatId].data.type = val;
@@ -239,7 +282,7 @@ bot.on("callback_query", async (q) => {
             });
         }
 
-        // ===== STATUS =====
+        //STATUS
         if (data.startsWith("add_status_")) {
             const val = data.replace("add_status_", "");
             state[chatId].data.status = val;
@@ -260,7 +303,7 @@ bot.on("callback_query", async (q) => {
             confirmKeyboard);
         }
 
-        // ===== SAVE =====
+        //  SAVE
         if (data === "add_confirm") {
             const s = state[chatId];
             const file = await getFile();
@@ -282,9 +325,7 @@ bot.on("callback_query", async (q) => {
     }
 });
 
-// =======================
 // MESSAGE FLOW
-// =======================
 bot.on("message", async (msg) => {
     try {
         const chatId = msg.chat.id;
@@ -300,7 +341,15 @@ bot.on("message", async (msg) => {
             const p = file.data.find(x => x.id === s.id);
             if (!p) return;
 
-            p.title = msg.text;
+            if (s.field === "title") {
+                p.title = msg.text;
+            } else if (s.field === "shortDescription") {
+                p.shortDescription = msg.text;
+            } else if (s.field === "description") {
+                p.description = msg.text;
+            } else {
+                return bot.sendMessage(chatId, "Unknown edit field", mainMenu);
+            }
 
             await updateFile(file.data, file.sha);
 
@@ -355,16 +404,11 @@ bot.on("message", async (msg) => {
     }
 });
 
-// =======================
-// KEEP ALIVE (optional)
-// =======================
 setInterval(() => {
     console.log("alive ping");
 }, 1000 * 60 * 5);
 
-// =======================
-// GLOBAL ERRORS
-// =======================
+
 process.on("uncaughtException", e => console.error("[FATAL]", e));
 process.on("unhandledRejection", e => console.error("[PROMISE]", e));
 
