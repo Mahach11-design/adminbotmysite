@@ -30,9 +30,7 @@ const state = {};
 const log = (...a) => console.log("[BOT]", ...a);
 const isAdmin = (id) => id === ADMIN_ID;
 
-// ═══════════════════════════════════════════════════════════
-// 🎨 BEAUTIFUL UI COMPONENTS
-// ═══════════════════════════════════════════════════════════
+// UI
 
 const getProgressBar = (current, total) => {
     const filled = Math.round((current / total) * 10);
@@ -59,7 +57,6 @@ const getTypeEmoji = (type) => {
     return typeMap[type] || "📦";
 };
 
-// Main menu - clean and organized
 const mainMenu = {
     reply_markup: {
         inline_keyboard: [
@@ -98,9 +95,9 @@ const confirmKeyboard = {
     }
 };
 
-// ═══════════════════════════════════════════════════════════
-// 📡 GITHUB API
-// ═══════════════════════════════════════════════════════════
+
+// GITHUB API
+
 
 async function getFile() {
     const res = await axios.get(
@@ -128,10 +125,6 @@ async function updateFile(data, sha) {
     );
 }
 
-// ═══════════════════════════════════════════════════════════
-// 🚀 BOT HANDLERS
-// ═══════════════════════════════════════════════════════════
-
 // START
 bot.onText(/\/start/, (msg) => {
     if (!isAdmin(msg.from.id)) {
@@ -141,7 +134,7 @@ bot.onText(/\/start/, (msg) => {
     const welcomeText = `
 
  📦 ПАНЕЛЬ АДМИНИСТРАТОРА       
-══════════════════════════
+════════════════════════
 
 Добро пожаловать! Здесь вы можете управлять своими проектами.
 
@@ -162,9 +155,8 @@ bot.on("callback_query", async (q) => {
 
         log("CLICK:", data);
 
-        // ─────────────────────────────────────────
-        // 📋 LIST PROJECTS
-        // ───────────────────────────────────��─────
+
+        // LIST PROJECTS
         if (data === "list") {
             const file = await getFile();
             
@@ -175,7 +167,7 @@ bot.on("callback_query", async (q) => {
             let text = `
 
 📋 ВСЕ ПРОЕКТЫ (${file.data.length})          
-══════════════════════════
+════════════════════════
 
 `;
             file.data.forEach((p, index) => {
@@ -188,9 +180,9 @@ ${index < file.data.length - 1 ? "───────────────�
             return bot.sendMessage(chatId, text, mainMenu);
         }
 
-        // ─────────────────────────────────────────
-        // 🗑️ DELETE PROJECT
-        // ─────────────────────────────────────────
+
+        // DELETE PROJECT
+
         if (data === "delete_menu") {
             const file = await getFile();
             
@@ -220,9 +212,8 @@ ${index < file.data.length - 1 ? "───────────────�
             return bot.sendMessage(chatId, `✅ Проект "${project.title}" удален`, mainMenu);
         }
 
-        // ─────────────────────────────────────────
-        // ✏️ EDIT PROJECT
-        // ─────────────────────────────────────────
+
+        // EDIT 
         if (data === "edit_menu") {
             const file = await getFile();
             
@@ -251,7 +242,7 @@ ${index < file.data.length - 1 ? "───────────────�
             const editText = `
 
 ✏️ РЕДАКТИРОВАНИЕ 
-══════════════════════════
+════════════════════════
 
 📌 Проект: ${project.title}
 
@@ -319,9 +310,7 @@ ${index < file.data.length - 1 ? "───────────────�
             return bot.sendMessage(chatId, `✅ Статус обновлен: ${getStatusEmoji(status)} ${status}`, mainMenu);
         }
 
-        // ─────────────────────────────────────────
-        // ➕ ADD PROJECT
-        // ─────────────────────────────────────────
+        // ADD PROJECT
         if (data === "add") {
             state[chatId] = {
                 mode: "add",
@@ -333,7 +322,7 @@ ${index < file.data.length - 1 ? "───────────────�
             const addText = `
 
 ➕ ДОБАВЛЕНИЕ ПРОЕКТА
-══════════════════════════
+════════════════════════
 
 ${getProgressBar(1, 6)}
 ШАГ 1/6: Название проекта
@@ -344,9 +333,6 @@ ${getProgressBar(1, 6)}
             return bot.sendMessage(chatId, addText, backCancel);
         }
 
-        // ─────────────────────────────────────────
-        // NAVIGATION
-        // ─────────────────────────────────────────
         if (data === "cancel") {
             delete state[chatId];
             return bot.sendMessage(chatId, "❌ Операция отменена", mainMenu);
@@ -429,7 +415,7 @@ ${getProgressBar(1, 6)}
             const previewText = `
 
  ✅ ПРОВЕРКА ДАННЫХ
-══════════════════════════
+════════════════════════
 
 📌 Название:
 ${d.title}
@@ -474,7 +460,7 @@ ${d.url}
             const successText = `
 
  ✅ УСПЕШНО!   
-══════════════════════════
+════════════════════════
 
 Проект "${s.data.title}" создан 🎉
 
@@ -489,10 +475,6 @@ ${d.url}
         bot.sendMessage(q.message.chat.id, "❌ Ошибка при обработке запроса", mainMenu);
     }
 });
-
-// ═══════════════════════════════════════════════════════════
-// 💬 MESSAGE HANDLING
-// ═══════════════════════════════════════════════════════════
 
 bot.on("message", async (msg) => {
     try {
@@ -527,7 +509,6 @@ bot.on("message", async (msg) => {
             return bot.sendMessage(chatId, `✅ "${s.field}" обновлено`, mainMenu);
         }
 
-        // ADD MODE - STEP BY STEP
         if (s.step === "title") {
             s.data.title = msg.text;
             s.step = "short";
@@ -574,12 +555,12 @@ bot.on("message", async (msg) => {
     }
 });
 
-// Keep-alive ping
+
 setInterval(() => {
     console.log("alive ping");
 }, 1000 * 60 * 5);
 
-// Error handling
+
 process.on("uncaughtException", e => console.error("[FATAL]", e));
 process.on("unhandledRejection", e => console.error("[PROMISE]", e));
 
