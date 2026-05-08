@@ -9,11 +9,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
-    res.send("Bot is running");
+    res.send("Бот запущен");
 });
 
 app.listen(PORT, () => {
-    console.log("HTTP server running on", PORT);
+    console.log("HTTP сервер запущен на", PORT);
 });
 
 // TELEGRAM
@@ -54,19 +54,19 @@ const getTypeEmoji = (type) => {
         "bot": "🤖",
         "tool": "⚙️"
     };
-    return typeMap[type] || "📦";
+    return typeMap[type] || "❓";
 };
 
 const mainMenu = {
     reply_markup: {
         inline_keyboard: [
             [
-                { text: "➕ Добавить", callback_data: "add" },
-                { text: "📋 Список", callback_data: "list" }
+                { text: "+ Добавить", callback_data: "add" },
+                { text: "Список", callback_data: "list" }
             ],
             [
-                { text: "✏️ Редактировать", callback_data: "edit_menu" },
-                { text: "🗑️ Удалить", callback_data: "delete_menu" }
+                { text: "Редактировать", callback_data: "edit_menu" },
+                { text: "Удалить", callback_data: "delete_menu" }
             ]
         ]
     }
@@ -76,8 +76,8 @@ const backCancel = {
     reply_markup: {
         inline_keyboard: [
             [
-                { text: "⬅️ Назад", callback_data: "add_back" },
-                { text: "❌ Отмена", callback_data: "cancel" }
+                { text: "Назад", callback_data: "add_back" },
+                { text: "Отмена", callback_data: "cancel" }
             ]
         ]
     }
@@ -86,10 +86,10 @@ const backCancel = {
 const confirmKeyboard = {
     reply_markup: {
         inline_keyboard: [
-            [{ text: "✅ Сохранить", callback_data: "add_confirm" }],
+            [{ text: "Сохранить", callback_data: "add_confirm" }],
             [
-                { text: "🔙 Назад", callback_data: "add_back" },
-                { text: "❌ Отмена", callback_data: "cancel" }
+                { text: "Назад", callback_data: "add_back" },
+                { text: "Отмена", callback_data: "cancel" }
             ]
         ]
     }
@@ -133,8 +133,8 @@ bot.onText(/\/start/, (msg) => {
     
     const welcomeText = `
 
- 📦 ПАНЕЛЬ АДМИНИСТРАТОРА       
-════════════════════════
+ПАНЕЛЬ АДМИНИСТРАТОРА       
+══════════════════════
 
 Добро пожаловать! Здесь вы можете управлять своими проектами.
 
@@ -161,20 +161,20 @@ bot.on("callback_query", async (q) => {
             const file = await getFile();
             
             if (file.data.length === 0) {
-                return bot.sendMessage(chatId, "📭 Нет проектов\n\nНажмите ➕ Добавить для создания первого проекта", mainMenu);
+                return bot.sendMessage(chatId, "Нет проектов\n\nНажмите + Добавить для создания первого проекта", mainMenu);
             }
 
             let text = `
 
-📋 ВСЕ ПРОЕКТЫ (${file.data.length})          
-════════════════════════
+ВСЕ ПРОЕКТЫ (${file.data.length})          
+══════════════════════
 
 `;
             file.data.forEach((p, index) => {
                 text += `${index + 1}. ${getTypeEmoji(p.type)} ${p.title}
    ${getStatusEmoji(p.status)} Статус: ${p.status}
    🔗 ${p.url}
-${index < file.data.length - 1 ? "─────────────────────────────\n" : ""}`;
+${index < file.data.length - 1 ? "══════════════════════\n" : ""}`;
             });
 
             return bot.sendMessage(chatId, text, mainMenu);
@@ -187,16 +187,16 @@ ${index < file.data.length - 1 ? "───────────────�
             const file = await getFile();
             
             if (file.data.length === 0) {
-                return bot.sendMessage(chatId, "📭 Нет проектов для удаления", mainMenu);
+                return bot.sendMessage(chatId, "Нет проектов для удаления", mainMenu);
             }
 
             const buttons = file.data.map(p => ([{
-                text: `🗑️ ${p.title}`,
+                text: `${p.title}`,
                 callback_data: `del_${p.id}`
             }]));
-            buttons.push([{ text: "❌ Отмена", callback_data: "cancel" }]);
+            buttons.push([{ text: "Отмена", callback_data: "cancel" }]);
 
-            return bot.sendMessage(chatId, "🗑️ Выберите проект для удаления:", {
+            return bot.sendMessage(chatId, "Выберите проект для удаления:", {
                 reply_markup: { inline_keyboard: buttons }
             });
         }
@@ -209,7 +209,7 @@ ${index < file.data.length - 1 ? "───────────────�
             file.data = file.data.filter(p => p.id !== id);
             await updateFile(file.data, file.sha);
             
-            return bot.sendMessage(chatId, `✅ Проект "${project.title}" удален`, mainMenu);
+            return bot.sendMessage(chatId, `Проект "${project.title}" удален`, mainMenu);
         }
 
 
@@ -225,9 +225,9 @@ ${index < file.data.length - 1 ? "───────────────�
                 text: `✏️ ${p.title}`,
                 callback_data: `edit_${p.id}`
             }]));
-            buttons.push([{ text: "❌ Отмена", callback_data: "cancel" }]);
+            buttons.push([{ text: "Отмена", callback_data: "cancel" }]);
 
-            return bot.sendMessage(chatId, "✏️ Выберите проект для редактирования:", {
+            return bot.sendMessage(chatId, "Выберите проект для редактирования:", {
                 reply_markup: { inline_keyboard: buttons }
             });
         }
@@ -237,14 +237,14 @@ ${index < file.data.length - 1 ? "───────────────�
             const file = await getFile();
             const project = file.data.find(p => p.id === id);
             
-            if (!project) return bot.sendMessage(chatId, "❌ Проект не найден", mainMenu);
+            if (!project) return bot.sendMessage(chatId, "Проект не найден", mainMenu);
 
             const editText = `
 
-✏️ РЕДАКТИРОВАНИЕ 
-════════════════════════
+РЕДАКТИРОВАНИЕ
+══════════════════════
 
-📌 Проект: ${project.title}
+Проект: ${project.title}
 
 Что вы хотите изменить?
 `;
@@ -252,12 +252,12 @@ ${index < file.data.length - 1 ? "───────────────�
             return bot.sendMessage(chatId, editText, {
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "📝 Название", callback_data: `edit_field_title_${id}` }],
-                        [{ text: "🧾 Краткое описание", callback_data: `edit_field_shortDescription_${id}` }],
-                        [{ text: "📄 Полное описание", callback_data: `edit_field_description_${id}` }],
-                        [{ text: "⚙️ Стек технологий", callback_data: `edit_field_stack_${id}` }],
-                        [{ text: "📊 Статус", callback_data: `edit_field_status_${id}` }],
-                        [{ text: "❌ Отмена", callback_data: "cancel" }]
+                        [{ text: "Название", callback_data: `edit_field_title_${id}` }],
+                        [{ text: "Краткое описание", callback_data: `edit_field_shortDescription_${id}` }],
+                        [{ text: "Полное описание", callback_data: `edit_field_description_${id}` }],
+                        [{ text: "Стек технологий", callback_data: `edit_field_stack_${id}` }],
+                        [{ text: "Статус", callback_data: `edit_field_status_${id}` }],
+                        [{ text: "Отмена", callback_data: "cancel" }]
                     ]
                 }
             });
@@ -275,14 +275,14 @@ ${index < file.data.length - 1 ? "───────────────�
                             [{ text: "🟡 В процессе", callback_data: `edit_status_val_${id}_in_progress` }],
                             [{ text: "🟢 Завершено", callback_data: `edit_status_val_${id}_done` }],
                             [{ text: "⚪ Не начиналось", callback_data: `edit_status_val_${id}_not_started` }],
-                            [{ text: "❌ Отмена", callback_data: "cancel" }]
+                            [{ text: "Отмена", callback_data: "cancel" }]
                         ]
                     }
                 });
             }
 
             if (field === "stack") {
-                return bot.sendMessage(chatId, `⚙️ Отправьте стек (через запятую):`, backCancel);
+                return bot.sendMessage(chatId, `Отправьте стек (через запятую):`, backCancel);
             }
 
             const labels = {
@@ -291,7 +291,7 @@ ${index < file.data.length - 1 ? "───────────────�
                 description: "Полное описание"
             };
 
-            return bot.sendMessage(chatId, `📝 Отправьте новое "${labels[field] || field}":`, backCancel);
+            return bot.sendMessage(chatId, `Отправьте новое "${labels[field] || field}":`, backCancel);
         }
 
         if (data.startsWith("edit_status_val_")) {
@@ -301,13 +301,13 @@ ${index < file.data.length - 1 ? "───────────────�
             const file = await getFile();
             const project = file.data.find(p => p.id === id);
             
-            if (!project) return bot.sendMessage(chatId, "❌ Проект не найден", mainMenu);
+            if (!project) return bot.sendMessage(chatId, "Проект не найден", mainMenu);
 
             project.status = status;
             await updateFile(file.data, file.sha);
 
             delete state[chatId];
-            return bot.sendMessage(chatId, `✅ Статус обновлен: ${getStatusEmoji(status)} ${status}`, mainMenu);
+            return bot.sendMessage(chatId, `Статус обновлен: ${getStatusEmoji(status)} ${status}`, mainMenu);
         }
 
         // ADD PROJECT
@@ -321,8 +321,8 @@ ${index < file.data.length - 1 ? "───────────────�
             
             const addText = `
 
-➕ ДОБАВЛЕНИЕ ПРОЕКТА
-════════════════════════
++ ДОБАВЛЕНИЕ ПРОЕКТА
+══════════════════════
 
 ${getProgressBar(1, 6)}
 ШАГ 1/6: Название проекта
@@ -335,7 +335,7 @@ ${getProgressBar(1, 6)}
 
         if (data === "cancel") {
             delete state[chatId];
-            return bot.sendMessage(chatId, "❌ Операция отменена", mainMenu);
+            return bot.sendMessage(chatId, "Операция отменена", mainMenu);
         }
 
         if (data === "add_back") {
@@ -361,10 +361,10 @@ ${getProgressBar(1, 6)}
                     return bot.sendMessage(chatId, stepMessages[s.step], {
                         reply_markup: {
                             inline_keyboard: [
-                                [{ text: "🌐 Сайт", callback_data: "add_type_site" }],
-                                [{ text: "📱 Приложение", callback_data: "add_type_app" }],
-                                [{ text: "🤖 Бот", callback_data: "add_type_bot" }],
-                                [{ text: "⚙️ Инструмент", callback_data: "add_type_tool" }]
+                                [{ text: "Сайт", callback_data: "add_type_site" }],
+                                [{ text: "Приложение", callback_data: "add_type_app" }],
+                                [{ text: "Бот", callback_data: "add_type_bot" }],
+                                [{ text: "Инструмент", callback_data: "add_type_tool" }]
                             ]
                         }
                     });
@@ -383,7 +383,7 @@ ${getProgressBar(1, 6)}
                 }
             } else {
                 delete state[chatId];
-                return bot.sendMessage(chatId, "❌ Операция отменена", mainMenu);
+                return bot.sendMessage(chatId, "Операция отменена", mainMenu);
             }
         }
 
@@ -414,29 +414,29 @@ ${getProgressBar(1, 6)}
 
             const previewText = `
 
- ✅ ПРОВЕРКА ДАННЫХ
-════════════════════════
+ ПРОВЕРКА ДАННЫХ
+══════════════════════
 
-📌 Название:
+Название:
 ${d.title}
 
-🧾 Краткое описание:
+Краткое описание:
 ${d.shortDescription}
 
-📄 Полное описание:
+Полное описание:
 ${d.description}
 
-⚙️ Стек:
+Стек:
 ${Array.isArray(d.stack) ? d.stack.join(", ") : d.stack}
 
-🔗 URL:
+URL:
 ${d.url}
 
-🏷️ Тип: ${getTypeEmoji(d.type)} ${d.type}
+Тип: ${getTypeEmoji(d.type)} ${d.type}
 
-📊 Статус: ${getStatusEmoji(d.status)} ${d.status}
+Статус: ${getStatusEmoji(d.status)} ${d.status}
 
-─────────────────────────────────────
+══════════════════════
 Всё верно? Нажмите "Сохранить"
 `;
 
@@ -459,10 +459,10 @@ ${d.url}
 
             const successText = `
 
- ✅ УСПЕШНО!   
-════════════════════════
+ УСПЕШНО!   
+══════════════════════
 
-Проект "${s.data.title}" создан 🎉
+Проект "${s.data.title}" создан успешно!
 
 Вернитесь в главное меню для дальнейших действий.
 `;
@@ -472,7 +472,7 @@ ${d.url}
 
     } catch (e) {
         console.error("[CALLBACK ERROR]", e);
-        bot.sendMessage(q.message.chat.id, "❌ Ошибка при обработке запроса", mainMenu);
+        bot.sendMessage(q.message.chat.id, "Ошибка при обработке запроса", mainMenu);
     }
 });
 
@@ -500,7 +500,7 @@ bot.on("message", async (msg) => {
             } else if (s.field === "stack") {
                 p.stack = msg.text.split(",").map(x => x.trim());
             } else {
-                return bot.sendMessage(chatId, "❌ Неизвестное поле", mainMenu);
+                return bot.sendMessage(chatId, "Неизвестное поле", mainMenu);
             }
 
             await updateFile(file.data, file.sha);
@@ -540,10 +540,10 @@ bot.on("message", async (msg) => {
             return bot.sendMessage(chatId, `${getProgressBar(6, 6)}\nШАГ 6/6: Тип проекта\n\nВыберите тип проекта:`, {
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "🌐 Сайт", callback_data: "add_type_site" }],
-                        [{ text: "📱 Приложение", callback_data: "add_type_app" }],
-                        [{ text: "🤖 Бот", callback_data: "add_type_bot" }],
-                        [{ text: "⚙️ Инструмент", callback_data: "add_type_tool" }]
+                        [{ text: "Сайт", callback_data: "add_type_site" }],
+                        [{ text: "Приложение", callback_data: "add_type_app" }],
+                        [{ text: "Бот", callback_data: "add_type_bot" }],
+                        [{ text: "Инструмент", callback_data: "add_type_tool" }]
                     ]
                 }
             });
@@ -551,7 +551,7 @@ bot.on("message", async (msg) => {
 
     } catch (e) {
         console.error("[MESSAGE ERROR]", e);
-        bot.sendMessage(chatId, "❌ Ошибка при обработке сообщения", mainMenu);
+        bot.sendMessage(chatId, "Ошибка при обработке сообщения", mainMenu);
     }
 });
 
@@ -564,4 +564,4 @@ setInterval(() => {
 process.on("uncaughtException", e => console.error("[FATAL]", e));
 process.on("unhandledRejection", e => console.error("[PROMISE]", e));
 
-log("BOT STARTED ✅");
+log("Бот запущен");
